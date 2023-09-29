@@ -1,0 +1,153 @@
+---
+- hosts: proxmox_host
+  tasks:
+
+    - name: Update APT cache
+      apt:
+        update_cache: yes
+
+    - name: Create and start LXC containers using Proxmox module
+      proxmox:
+        api_user: root
+        api_password: 76DC542acacc!
+        api_host: 172.16.47.2
+        node: hub1
+        vmid: "{{ item.id }}"
+        password: Container!
+        hostname: "ct{{ item.id }}"
+        ostemplate: local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst
+        cores: 1
+        memory: 1024
+        net: "{'net0':'name=eth0,bridge=vmbr0,ip={{ item.ip }}/24,gw=172.16.0.1,type=veth'}"
+        state: started
+      loop:
+        - { id: '100', ip: '172.16.47.20' }
+        - { id: '101', ip: '172.16.47.21' }
+        - { id: '102', ip: '172.16.47.22' }
+        - { id: '103', ip: '172.16.47.23' }
+        - { id: '104', ip: '172.16.47.24' }
+        - { id: '105', ip: '172.16.47.25' }
+        - { id: '106', ip: '172.16.47.26' }
+        - { id: '107', ip: '172.16.47.27' }
+        - { id: '108', ip: '172.16.47.28' }
+        - { id: '109', ip: '172.16.47.29' }
+ 
+
+- hosts: wordpress_containers
+  become: yes
+  tasks:
+    - name: Install and start firewalld
+      apt:
+        name: firewalld
+        state: present
+      notify:
+        - Start firewalld
+
+    - name: Allow only necessary services
+      firewalld:
+        service: "{{ item }}"
+        permanent: yes
+        state: enabled
+      with_items:
+        - http
+        - https
+        - ssh
+
+    - name: Reload firewall
+      command: firewall-cmd --reload
+
+    - name: Install necessary packages for WordPress
+      apt:
+        name:
+          - apache2
+          - mariadb-server
+          - php
+          - php-mysql
+          - libapache2-mod-php
+          - wget
+        state: present
+
+    - name: Start and Enable http and mariadb and ssh
+      service:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      with_items:
+        - apache2
+        - mariadb
+        - ssh
+
+    - name: Download WordPress
+      get_url:
+        url: https://wordpress.org/latest.tar.gz
+        dest: /tmp/wordpress.tar.gz
+        mode: '0755'
+
+    - name: Extract WordPress archive
+      unarchive:
+        src: /tmp/wordpress.tar.gz
+        dest: /var/www/html/
+        remote_src: yes
+
+        # Continue with further WordPress configuration like setting up wp-config.php, database etc...
+    - name: Start firewalld
+      service:
+        name: firewalld
+        state: started
+
+    - name: Install MySQL Python library (to use Ansible's MySQL modules)
+      apt:
+        name: python3-pymysql
+        state: present
+
+    - name: Ensure MariaDB is started
+      service:
+        name: mariadb
+        state: started
+
+    - name: Create WordPress database
+      mysql_db:
+        name: wordpress
+        state: present
+
+    - name: Create WordPress user
+      mysql_user:
+        name: wp_user
+        password: wp_password
+        priv: 'wordpress.*:ALL'
+        state: present
+
+    - name: Fetch wp-config sample file
+      command:
+        cmd: "cp /var/www/html/wordpress/wp-config-sample.php /var/www/html/wordpress/wp-config.php"
+
+    - name: Set database details in wp-config
+      lineinfile:
+        path: /var/www/html/wordpress/wp-config.php
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      loop:
+        - { regexp: "'DB_NAME', 'database_name_here'", line: "'DB_NAME', 'wordpress'" }
+        - { regexp: "'DB_USER', 'username_here'", line: "'DB_USER', 'wp_user'" }
+        - { regexp: "'DB_PASSWORD', 'password_here'", line: "'DB_PASSWORD', 'wp_password'" }
+      loop_control:
+        loop_var: item
+
+    - name: Ensure WordPress ownership for proper functioning
+      file:
+        path: /var/www/html/wordpress
+        owner: apache
+        group: apache
+        recurse: yes
+
+    - name: Install wp-cli
+      get_url:
+        url: https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+        dest: /usr/local/bin/wp
+        mode: '0755'
+
+    - name: Install WordPress silently using wp-cli
+      command:
+        cmd: "wp core install --url='your_domain_here' --title='WordPress' --admin_user='admin' --admin_password='strong_password' --admin_email='you@example.com' --path='/var/www/html/wordpress/'"
+        chdir: /var/www/html/wordpress/
+        creates: /var/www/html/wordpress/wp-settings.php
