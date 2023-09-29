@@ -1,0 +1,11 @@
+[wordpress_containers]
+172.16.47.20 ansible_ssh_user=root ansible_ssh_pass=Container!
+172.16.47.21 ansible_ssh_user=root ansible_ssh_pass=Container!
+172.16.47.22 ansible_ssh_user=root ansible_ssh_pass=Container!
+172.16.47.23 ansible_ssh_user=root ansible_ssh_pass=Container!
+172.16.47.24 ansible_ssh_user=root ansible_ssh_pass=Container!
+172.16.47.25 ansible_ssh_user=root ansible_ssh_pass=Container!
+172.16.47.26 ansible_ssh_user=root ansible_ssh_pass=Container!
+172.16.47.27 ansible_ssh_user=root ansible_ssh_pass=Container!
+172.16.47.28 ansible_ssh_user=root ansible_ssh_pass=Container!
+172.16.47.29 ansible_ssh_user=root ansible_ssh_pass=Container!
